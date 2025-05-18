@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>APK Analysis Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Rubik', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      transition: all 0.3s ease;
+    }
+
+    .container {
+      max-width: 90%;
+      margin: 40px auto;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 30px;
+      border-radius: 20px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 20px;
+    }
+
+    .section h2 {
+      background: #007BFF;
+      padding: 14px;
+      cursor: pointer;
+      border-radius: 10px;
+      margin: 15px 0 5px;
+      transition: all 0.3s ease;
+      text-align: center;
+    }
+
+    .section h2:hover {
+      background: #0056b3;
+      transform: scale(1.05);
+    }
+
+    .content {
+      display: none;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+      padding: 15px;
+      border-radius: 10px;
+      animation: fadeIn 0.4s ease-in-out;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .high { background-color: #ff4d4d; color: white; }
+    .medium { background-color: #ffcc00; color: black; }
+    .low { background-color: #4CAF50; color: white; }
+
+    .filters, .controls {
+      display: flex;
+      justify-content: center;
+      margin: 15px 0;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .filters button, .controls button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.3s ease;
+    }
+
+    .filters .high { background: #e74c3c; }
+    .filters .medium { background: #f39c12; }
+    .filters .low { background: #27ae60; }
+
+    .controls .toggle-btn {
+      background: #2980b9;
+      color: white;
+    }
+
+    .controls .export-btn {
+      background: #16a085;
+      color: white;
+    }
+
+    .filters button:hover, .controls button:hover {
+      opacity: 0.85;
+      transform: scale(1.05);
+    }
+
+    .dark-mode {
+      background: linear-gradient(135deg, #1e1e1e, #2e2e2e);
+      color: #eee;
+    }
+
+    .dark-mode .content {
+      background: #333;
+      color: #eee;
+    }
+
+    .search-box input {
+      padding: 10px;
+      width: 60%;
+      border-radius: 8px;
+      border: none;
+      margin: 20px auto;
+      display: block;
+      font-size: 1rem;
+    }
+
+    canvas {
+      max-width: 300px;
+      margin: 20px auto;
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="controls">
+    <button class="toggle-btn" onclick="toggleDarkMode()">🌙 Dark Mode</button>
+    <button class="export-btn" onclick="exportResults()">📤 Export JSON</button>
+  </div>
+
+  <div class="container">
+    <h1>📱 APK Vulnerability Analysis Dashboard</h1>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 Search analysis results..." onkeyup="searchResults()">
+    </div>
+
+    <canvas id="vulnChart"></canvas>
+
+    <div class="filters">
+      <button class="high" onclick="filterSeverity('high')">High</button>
+      <button class="medium" onclick="filterSeverity('medium')">Medium</button>
+      <button class="low" onclick="filterSeverity('low')">Low</button>
+      <button onclick="filterSeverity('all')">Show All</button>
+    </div>
+
+    {% for category, items in [('Permissions', result.permissions), ('Activities', result.activities), ('Services', result.services), ('Vulnerabilities', result.vulnerabilities)] %}
+    <div class="section">
+      <h2 onclick="toggleSection(this)">📂 {{ category }}</h2>
+      <div class="content">
+        <ul id="{{ category | lower }}-list">
+          {% for item in items %}
+            {% if category == 'Vulnerabilities' %}
+              {% if 'High' in item %}
+                <li class="high">{{ item }}</li>
+              {% elif 'Medium' in item %}
+                <li class="medium">{{ item }}</li>
+              {% else %}
+                <li class="low">{{ item }}</li>
+              {% endif %}
+            {% else %}
+              <li>{{ item }}</li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <script>
+    function toggleSection(header) {
+      const content = header.nextElementSibling;
+      $(content).slideToggle(300);
+    }
+
+    function searchResults() {
+      const query = document.getElementById("searchInput").value.toLowerCase();
+      const lists = document.querySelectorAll("ul");
+
+      lists.forEach(list => {
+        list.querySelectorAll("li").forEach(item => {
+          if (item.textContent.toLowerCase().includes(query)) {
+            item.style.display = "block";
+            item.style.background = "yellow";
+            item.style.color = "black";
+          } else {
+            item.style.display = "none";
+          }
+        });
+      });
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark-mode");
+    }
+
+    function filterSeverity(level) {
+      document.querySelectorAll('#vulnerabilities-list li').forEach(item => {
+        if (level === 'all') {
+          item.style.display = "block";
+        } else {
+          item.style.display = item.classList.contains(level) ? "block" : "none";
+        }
+      });
+    }
+
+    function exportResults() {
+      const data = {
+        permissions: [...document.querySelectorAll('#permissions-list li')].map(li => li.textContent),
+        activities: [...document.querySelectorAll('#activities-list li')].map(li => li.textContent),
+        services: [...document.querySelectorAll('#services-list li')].map(li => li.textContent),
+        vulnerabilities: [...document.querySelectorAll('#vulnerabilities-list li')].map(li => li.textContent),
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "apk_analysis_results.json";
+      link.click();
+    }
+
+    // Draw vulnerability severity chart
+    window.onload = function () {
+      const ctx = document.getElementById("vulnChart").getContext("2d");
+      const highs = document.querySelectorAll(".high").length;
+      const meds = document.querySelectorAll(".medium").length;
+      const lows = document.querySelectorAll(".low").length;
+
+      new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["High", "Medium", "Low"],
+          datasets: [{
+            data: [highs, meds, lows],
+            backgroundColor: ["#e74c3c", "#f39c12", "#27ae60"]
+          }]
+        },
+        options: {
+          plugins: {
+            legend: {
+              labels: {
+                color: '#fff',
+                font: { size: 14 }
+              }
+            }
+          }
+        }
+      });
+    };
+  </script>
+
+</body>
+</html>
